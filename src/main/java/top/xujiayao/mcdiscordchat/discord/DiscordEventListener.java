@@ -38,6 +38,7 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import top.xujiayao.mcdiscordchat.utils.MarkdownParser;
+import top.xujiayao.mcdiscordchat.utils.PlaceholdersImpl;
 import top.xujiayao.mcdiscordchat.utils.Translations;
 import top.xujiayao.mcdiscordchat.utils.Utils;
 
@@ -94,11 +95,16 @@ public class DiscordEventListener extends ListenerAdapter {
 						.replace("%command%", e.getCommandString())));
 
 		if (CONFIG.generic.broadcastSlashCommandExecution) {
-			Text commandNoticeText = Text.Serialization.fromJson(Translations.translateMessage("message.formattedCommandNotice")
-					.replace("%name%", (CONFIG.generic.useServerNickname ? e.getMember().getEffectiveName() : e.getMember().getUser().getName()).replace("\\", "\\\\").replace("\"", "\\\""))
-					.replace("%roleName%", roleName)
-					.replace("%roleColor%", String.format("#%06X", (0xFFFFFF & e.getMember().getColorRaw())))
-					.replace("%command%", e.getCommandString()));
+			Text commandNoticeText;
+			if (CONFIG.generic.formattedMessagesUsePlaceholderApi) {
+				commandNoticeText = PlaceholdersImpl.formatCommandNoticeText(Translations.translateMessage("message.formattedCommandNotice"), e, roleName);
+			} else {
+				commandNoticeText = Text.Serialization.fromJson(Translations.translateMessage("message.formattedCommandNotice")
+						.replace("%name%", (CONFIG.generic.useServerNickname ? e.getMember().getEffectiveName() : e.getMember().getUser().getName()).replace("\\", "\\\\").replace("\"", "\\\""))
+						.replace("%roleName%", roleName)
+						.replace("%roleColor%", String.format("#%06X", (0xFFFFFF & e.getMember().getColorRaw())))
+						.replace("%command%", e.getCommandString()));
+			}
 
 			//#if MC <= 11802
 			//$$ SERVER.getPlayerManager().getPlayerList().forEach(
@@ -109,9 +115,13 @@ public class DiscordEventListener extends ListenerAdapter {
 			//$$ 				.append(commandNoticeText), false));
 			//#else
 			List<Text> commandNoticeTextList = new ArrayList<>();
-			commandNoticeTextList.add(Text.Serialization.fromJson(Translations.translateMessage("message.formattedOtherMessage")
-					.replace("%server%", (CONFIG.multiServer.enable ? CONFIG.multiServer.name : "Discord"))
-					.replace("%message%", "")));
+			if (CONFIG.generic.formattedMessagesUsePlaceholderApi) {
+				commandNoticeTextList.add(PlaceholdersImpl.formatOtherMessage(Translations.translateMessage("message.formattedOtherMessage")));
+			} else {
+				commandNoticeTextList.add(Text.Serialization.fromJson(Translations.translateMessage("message.formattedOtherMessage")
+						.replace("%server%", (CONFIG.multiServer.enable ? CONFIG.multiServer.name : "Discord"))
+						.replace("%message%", "")));
+			}
 			commandNoticeTextList.add(commandNoticeText);
 
 			SERVER.getPlayerManager().getPlayerList().forEach(
@@ -551,13 +561,18 @@ public class DiscordEventListener extends ListenerAdapter {
 		if (CONFIG.generic.broadcastChatMessages) {
 			if (e.getMessage().getReferencedMessage() != null) {
 				String s = Translations.translateMessage("message.formattedResponseMessage");
-				Text referenceFinalText = Text.Serialization.fromJson(s
-						.replace("%message%", (CONFIG.generic.formatChatMessages ? finalReferencedMessage : EmojiManager.replaceAllEmojis(referencedMessageTemp, emoji -> emoji.getDiscordAliases().get(0)).replace("\"", "\\\""))
-								.replace("\n", "\n" + textAfterPlaceholder[0] + "}," + s.substring(1, s.indexOf("%message%"))))
-						.replace("%server%", "Discord")
-						.replace("%name%", (referencedMember != null) ? (CONFIG.generic.useServerNickname ? referencedMember.getEffectiveName() : referencedMember.getUser().getName()).replace("\\", "\\\\").replace("\"", "\\\"") : webhookName)
-						.replace("%roleName%", referencedMemberRoleName)
-						.replace("%roleColor%", String.format("#%06X", (0xFFFFFF & ((referencedMember != null) ? referencedMember.getColorRaw() : Role.DEFAULT_COLOR_RAW)))));
+				Text referenceFinalText;
+				if (CONFIG.generic.formattedMessagesUsePlaceholderApi) {
+					referenceFinalText = PlaceholdersImpl.formatResponseMessage(s, finalReferencedMessage, referencedMessageTemp, textAfterPlaceholder, referencedMember, webhookName, referencedMemberRoleName);
+				} else {
+					referenceFinalText = Text.Serialization.fromJson(s
+							.replace("%message%", (CONFIG.generic.formatChatMessages ? finalReferencedMessage : EmojiManager.replaceAllEmojis(referencedMessageTemp, emoji -> emoji.getDiscordAliases().get(0)).replace("\"", "\\\""))
+									.replace("\n", "\n" + textAfterPlaceholder[0] + "}," + s.substring(1, s.indexOf("%message%"))))
+							.replace("%server%", "Discord")
+							.replace("%name%", (referencedMember != null) ? (CONFIG.generic.useServerNickname ? referencedMember.getEffectiveName() : referencedMember.getUser().getName()).replace("\\", "\\\\").replace("\"", "\\\"") : webhookName)
+							.replace("%roleName%", referencedMemberRoleName)
+							.replace("%roleColor%", String.format("#%06X", (0xFFFFFF & ((referencedMember != null) ? referencedMember.getColorRaw() : Role.DEFAULT_COLOR_RAW)))));
+				}
 
 				SERVER.getPlayerManager().getPlayerList().forEach(
 						player -> player.sendMessage(referenceFinalText, false));
